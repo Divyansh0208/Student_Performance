@@ -87,10 +87,10 @@ def save_data(train_data: pd.DataFrame, test_data: pd.DataFrame, data_path: str)
 
 def main():
     try:
-        # params = load_params(params_path='params.yaml')
-        # test_size = params['data_ingestion']['test_size']
+        params = load_params(params_path='params.yaml')
+        test_size = params['data_ingestion']['test_size']
 
-        test_size = 0.2  # Hardcoded for simplicity
+        # test_size = 0.2  # Hardcoded for simplicity
 
         data_path = 'https://raw.githubusercontent.com/imgovindgupta/Datasets/refs/heads/main/spam.csv'
         df = load_data(data_url=data_path)
