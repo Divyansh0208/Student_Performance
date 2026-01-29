@@ -5,3 +5,4 @@ nltk
 dvc
 dvclive
 mlflow
+nvidia-ml-py

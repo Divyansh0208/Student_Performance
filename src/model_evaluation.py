@@ -8,6 +8,9 @@ import logging
 import yaml
 from dvclive import Live
 
+import mlflow
+import mlflow.sklearn
+
 # Ensure the "logs" directory exists
 log_dir = 'logs'
 os.makedirs(log_dir, exist_ok=True)
@@ -110,6 +113,9 @@ def save_metrics(metrics: dict, file_path: str) -> None:
         logger.error('Error occurred while saving the metrics: %s', e)
         raise
 
+mlflow.set_tracking_uri("http://127.0.0.1:5000")  
+mlflow.set_experiment("Spam-Classifier-Evaluation2")
+
 def main():
     try:
         # params = load_params(params_path='params.yaml')
@@ -123,6 +129,28 @@ def main():
         metrics = evaluate_model(clf, X_test, y_test)
 
         y_pred = clf.predict(X_test)
+
+        # ================== MLflow Tracking ==================
+
+
+        with mlflow.start_run(run_name="model_evaluation"):
+
+                #  parameter logging ----
+            mlflow.log_param("model_type", clf.__class__.__name__)
+            mlflow.log_param("test_samples", X_test.shape[0])
+            mlflow.log_param("random_state", clf.random_state)
+
+    
+            mlflow.log_metric("accuracy", metrics["accuracy"])
+            mlflow.log_metric("precision", metrics["precision"])
+            mlflow.log_metric("recall", metrics["recall"])
+            mlflow.log_metric("auc", metrics["auc"])
+
+            mlflow.sklearn.log_model(
+                sk_model=clf,
+                name="model"
+            )
+        # =====================================================
 
         # # Experiment tracking using dvclive
         # with Live(save_dvc_exp=True) as live:
