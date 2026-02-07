@@ -1,5 +1,7 @@
 data_ingestion:
   test_size: 0.15
+  target_column: "G3"      # final grade as student progress target
+  problem_type: "regression"
 
 feature_engineering:
   max_features: 18

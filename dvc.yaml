@@ -5,6 +5,8 @@ stages:
     - src/data_ingestion.py
     params:
     - data_ingestion.test_size
+    - data_ingestion.target_column
+    - data_ingestion.problem_type
     outs:
     - data/raw
   data_preprocessing:

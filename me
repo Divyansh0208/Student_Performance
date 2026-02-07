@@ -3,7 +3,15 @@ import numpy as np
 import pandas as pd
 import pickle
 import json
-from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    mean_squared_error,
+    mean_absolute_error,
+    r2_score,
+)
 import logging
 import yaml
 from dvclive import Live
@@ -74,27 +82,46 @@ def load_data(file_path: str) -> pd.DataFrame:
         logger.error('Unexpected error occurred while loading the data: %s', e)
         raise
 
-def evaluate_model(clf, X_test: np.ndarray, y_test: np.ndarray) -> dict:
+def infer_problem_type(y: np.ndarray, params: dict) -> str:
+    """Infer problem type or use params override."""
+    problem_type = (params or {}).get("data_ingestion", {}).get("problem_type", "auto")
+    if problem_type in ("classification", "regression"):
+        return problem_type
+    unique_count = len(np.unique(y))
+    return "classification" if unique_count <= 20 and np.issubdtype(y.dtype, np.integer) else "regression"
+
+def get_target_column(df: pd.DataFrame, params: dict) -> str | None:
+    """Return target column from params if present in dataframe."""
+    target_col = (params or {}).get("data_ingestion", {}).get("target_column")
+    return target_col if target_col in df.columns else None
+
+def evaluate_model(clf, X_test: np.ndarray, y_test: np.ndarray, problem_type: str) -> dict:
     """Evaluate the model and return the evaluation metrics."""
     try:
         y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
-
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        auc = roc_auc_score(y_test, y_pred_proba)
+        if problem_type == "classification":
+            n_classes = len(np.unique(y_test))
+            avg = "binary" if n_classes == 2 else "weighted"
+            metrics_dict = {
+                "accuracy": accuracy_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred, average=avg, zero_division=0),
+                "recall": recall_score(y_test, y_pred, average=avg, zero_division=0),
+            }
+            if hasattr(clf, "predict_proba") and n_classes == 2:
+                y_pred_proba = clf.predict_proba(X_test)[:, 1]
+                metrics_dict["auc"] = roc_auc_score(y_test, y_pred_proba)
+            logger.debug("Classification metrics calculated")
+            return metrics_dict
 
         metrics_dict = {
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'auc': auc
+            "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+            "mae": mean_absolute_error(y_test, y_pred),
+            "r2": r2_score(y_test, y_pred),
         }
-        logger.debug('Model evaluation metrics calculated')
+        logger.debug("Regression metrics calculated")
         return metrics_dict
     except Exception as e:
-        logger.error('Error during model evaluation: %s', e)
+        logger.error("Error during model evaluation: %s", e)
         raise
 
 def save_metrics(metrics: dict, file_path: str) -> None:
@@ -112,15 +139,21 @@ def save_metrics(metrics: dict, file_path: str) -> None:
 
 def main():
     try:
-        # params = load_params(params_path='params.yaml')
+        params = load_params(params_path="params.yaml")
 
-        clf = load_model('./models/model.pkl')
-        test_data = load_data('./data/processed/test_tfidf.csv')
-        
-        X_test = test_data.iloc[:, :-1].values
-        y_test = test_data.iloc[:, -1].values
+        clf = load_model("./models/model.pkl")
+        test_data = load_data("./data/processed/test_tfidf.csv")
 
-        metrics = evaluate_model(clf, X_test, y_test)
+        target_col = get_target_column(test_data, params)
+        if target_col:
+            y_test = pd.to_numeric(test_data[target_col], errors="coerce").values
+            X_test = test_data.drop(columns=[target_col]).values
+        else:
+            X_test = test_data.iloc[:, :-1].values
+            y_test = pd.to_numeric(test_data.iloc[:, -1], errors="coerce").values
+
+        problem_type = infer_problem_type(y_test, params)
+        metrics = evaluate_model(clf, X_test, y_test, problem_type)
 
         y_pred = clf.predict(X_test)
 
@@ -132,9 +165,9 @@ def main():
             
         #     live.log_params(params)
         
-        save_metrics(metrics, 'reports/metrics.json')
+        save_metrics(metrics, "reports/metrics.json")
     except Exception as e:
-        logger.error('Failed to complete the model evaluation process: %s', e)
+        logger.error("Failed to complete the model evaluation process: %s", e)
         print(f"Error: {e}")
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+# NOTE: Re-run `dvc repro` after changing student dataset params (target_column/problem_type).
 schema: '2.0'
 stages:
   data_ingestion:
@@ -9,6 +10,8 @@ stages:
       size: 3685
     params:
       params.yaml:
+        data_ingestion.problem_type: regression
+        data_ingestion.target_column: G3
         data_ingestion.test_size: 0.15
     outs:
     - path: data/raw
@@ -74,15 +77,15 @@ stages:
     outs:
     - path: models/model.pkl
       hash: md5
-      md5: e0765794e0cda5008fe4c1fdb5943c72
-      size: 249972
+      md5: 03cf2d78db9063ef2913e976bad584b6
+      size: 250282
   model_evaluation:
     cmd: python src/model_evaluation.py
     deps:
     - path: models/model.pkl
       hash: md5
-      md5: e0765794e0cda5008fe4c1fdb5943c72
-      size: 249972
+      md5: 03cf2d78db9063ef2913e976bad584b6
+      size: 250282
     - path: src/model_evaluation.py
       hash: md5
       md5: 43d9aa7ffa404f016acea22c77522434

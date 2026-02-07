@@ -6,3 +6,4 @@ dvc
 dvclive
 mlflow
 nvidia-ml-py
+pyyaml
